@@ -21,7 +21,7 @@
 ## 1. One-Paragraph Summary
 *(Fill in after reading abstract + conclusion.)*
 
-Proposed DOI: `10.1109/TPAMI.2024.3364430` — verify on IEEE Xplore.
+DOI: `10.1109/TPAMI.2024.3374072` (verify on IEEE Xplore).
 
 ---
 
@@ -39,8 +39,8 @@ Proposed DOI: `10.1109/TPAMI.2024.3364430` — verify on IEEE Xplore.
 
 **Paper's claimed contribution:**
 - Multi-level architecture that is accurate **and** interpretable
-- AASM expert knowledge injected at multiple abstraction levels
-- Novel expert-rule fidelity metric for evaluating interpretability
+- AASM expert knowledge infused via **trainable Gabor kernels** as the network's first layer (architectural inductive bias, not auxiliary losses)
+- Four-level interpretability framework with the Effective Functional Effect (EFF) metric
 
 ---
 
@@ -48,129 +48,177 @@ Proposed DOI: `10.1109/TPAMI.2024.3364430` — verify on IEEE Xplore.
 
 ### 3.1 Input Modalities
 
-| Modality | Channels | Clinical role |
+| Modality | Channels (Sleep-EDF) | Clinical role |
 |---|---|---|
-| EEG | F3/F4, C3/C4, O1/O2 (AASM standard derivations) | Brain state: spindles (N2), K-complexes (N2), slow waves (N3), mixed-frequency (N1) |
-| EOG | E1-M2, E2-M1 (left + right eye) | Rapid eye movements → REM detection |
-| EMG | Submental/chin muscle | Atonia → distinguishes REM from N1 |
+| EEG | Fpz-Cz, Pz-Oz | Brain state: spindles (N2), K-complexes (N2), slow waves (N3), mixed-frequency (N1) |
+| EOG | 1 horizontal EOG | Rapid eye movements → REM detection; slow rolling movements → N1 |
 
-**Windowing**: 30-second epochs at 100–256 Hz → 3,000–7,680 samples per epoch.
+**Note:** EMG is **not used** in this paper (only EEG + EOG). The DREAMS dataset includes EMG but the paper processes only EEG and EOG channels.
+
+**Windowing**: 30-second epochs at 100 Hz → 3,000 samples per epoch.
 *Same frame-based analysis as MFCC in speech (MM-Systems Lecture 5).*
 
-### 3.2 Multi-Level Architecture
+### 3.2 Two-Level Architecture
 
-| Paper Level | MM-Systems Layer | What happens |
+The system has two levels corresponding to two scales of expert reasoning:
+
+**Level 1 — Single-Epoch Network** (within one 30-second window):
+
+| Step | Layer | Details |
 |---|---|---|
-| Level 1 | Physical signals | Raw EEG/EOG/EMG sample sequences |
-| Level 2 | Low-level features | CNN extracts band power, spindle characteristics, K-complex waveforms, slow-wave amplitude |
-| Level 3 | Mid-level features | Attention over Level 2 features, guided by AASM-rule knowledge; auxiliary supervised representations |
-| Level 4 | Concepts/structures | Sleep stage label (Wake/N1/N2/N3/REM) + temporal sequence model |
+| 1 | Z-score normalization | Standardize amplitude across recordings |
+| 2 | **Gabor Layer (EEG)** | 32 trainable Gabor kernels → 32 frequency-band activation channels |
+| 3 | **Gabor Layer (EOG)** | 8 trainable Gabor kernels → 8 eye-movement pattern channels |
+| 4 | ReLU | — |
+| 5 | **Mixing Layer (1×1 conv)** | Combines 40 Gabor outputs; learns cross-modal interactions (early fusion) |
+| 6 | 4× CNN blocks | Each: 1D Conv (k=3) → ReLU → MaxPool (k=3, s=3) → BatchNorm |
+| 7 | Dropout (p=0.5) | Regularization |
+| 8 | FC layers | 256 → 128 → 5 (five sleep stages) |
 
-### 3.3 Expert Knowledge Injection — Mechanisms
+Output O_n: 5-dimensional vector for epoch n.
 
-Three complementary mechanisms:
+**Level 2 — Multi-Epoch Network** (across consecutive epochs):
+- Input: O_{n-4}, ..., O_n, ..., O_{n+4} (9 consecutive epochs = 4.5 minutes context)
+- Two **Bi-LSTM layers** (hidden size = 10)
+- FC layer → final 5-class prediction for center epoch
+- Learns transition patterns: which stage sequences are physiologically plausible
 
-**1. Attention regularisation**
-Attention weights over the 30-second epoch are pushed (via auxiliary loss) toward time/frequency regions AASM specifies as discriminative:
-- σ-band (12–15 Hz) at spindle-containing time points → N2
-- δ-band (0.5–4 Hz) at slow-wave segments → N3
-- Rapid EOG bursts → REM
-- Low chin EMG amplitude → REM (atonia)
+| Level | Mimics | Handles |
+|---|---|---|
+| Single-epoch (CNN) | Expert examining one window | Within-epoch waveform detection |
+| Multi-epoch (Bi-LSTM) | Expert reviewing surrounding context | Between-epoch transition rules |
 
-**2. Expert-rule auxiliary losses (soft constraints)**
+**MM-Systems four-layer hierarchy mapping:**
+
+| MM-Systems Layer | Architecture Component |
+|---|---|
+| Physical signals | Raw EEG/EOG samples |
+| Low-level features | Gabor kernel activations (frequency-band power) |
+| Mid-level features | CNN-extracted higher-order patterns (spindle detection, K-complex recognition) |
+| Concepts/structures | Sleep stage labels (Wake/S1/S2/SWS/REM) |
+
+### 3.3 Expert Knowledge Infusion — The Gabor Kernel Mechanism
+
+> **CORRECTION:** Earlier versions of these notes described auxiliary losses, attention regularization, and transition probability constraints. **The actual paper uses none of these.** The loss function is simply cross-entropy. Expert knowledge is infused purely through architectural design.
+
+The primary mechanism is using **Gabor functions** as the network's first convolutional layer instead of unconstrained filters.
+
+**Gabor function:**
 ```
-L_total = L_CE(ŷ, y) + λ₁·L_feature + λ₂·L_transition + λ₃·L_attention
+G(t*) = exp(-π(t* - u)² / |σ|) · cos(2πft*)
 ```
-- `L_CE` — cross-entropy for stage classification
-- `L_feature` — MSE / BCE between intermediate representation and output of automatic feature detectors (spindle detector, slow-wave detector)
-- `L_transition` — KL divergence between learned transition probabilities and expert-derived AASM transition prior matrix
-- `L_attention` — penalty when attention deviates from expert-prescribed frequency-band importance
-- λ₁, λ₂, λ₃ — hyperparameters (tuned per dataset)
 
-**3. Transition probability constraints**
-Sequence-level model (LSTM or Transformer over epoch sequence) receives a learnable transition prior derived from AASM sleep architecture rules:
-- e.g., N3 does not directly follow REM in typical cycles
-- Direct Wake→REM transition only valid in certain conditions
+Three learnable parameters:
+- **f** (frequency): maps to EEG bands — delta (0.5–4 Hz), theta (4–8 Hz), alpha (8–13 Hz), sigma (12–16 Hz)
+- **σ** (bandwidth): narrow = short burst (spindle); wide = sustained oscillation (slow wave)
+- **u** (time offset): center position in the ±1 second window
 
-**4. Attention formula (additive / Bahdanau-style)** *(verify exact formulation)*
+**Why this is "expert knowledge infusion":** Gabor functions are constrained to be localized oscillations. Every kernel the network learns is guaranteed to be a frequency-band filter with physiological meaning. After training, each kernel can be inspected and matched to a known sleep waveform:
+
+| Kernel | Frequency | Matches | Clinical meaning |
+|---|---|---|---|
+| Kernels 3, 18 | ~1 Hz (wide σ) | Slow oscillations | SWS/N3 marker |
+| Kernels 4, 23 | ~4 Hz (medium σ) | Theta waves | REM-associated |
+| Kernel 24 | ~15 Hz (narrow σ) | Sleep spindles | N2 marker |
+| Various | 8–13 Hz | Alpha rhythm | Wakefulness |
+
+**Configuration:** 32 EEG kernels + 8 EOG kernels. Time window: ±1s (200 samples at 100 Hz). Parameters learned via backpropagation.
+
+**Loss function:** Standard cross-entropy only:
 ```
-e_t = v^T · tanh(W·h_t + b)
-α_t = exp(e_t) / Σ_j exp(e_j)       (softmax)
-c   = Σ_t α_t · h_t                  (context vector)
-
-Knowledge constraint:
-L_attention = Σ_t || α_t - α_t^expert ||²
+loss(O, class) = -log(exp(O[class]) / Σ_k exp(O[k]))
 ```
-where `α_t^expert` is the soft target from an automatic feature detector.
 
-### 3.4 Deep Learning Components
-*(Fill in from paper — likely CNN + bidirectional LSTM + attention, possibly Transformer)*
+**Training:** Adam optimizer, lr = 0.000625, decreased every 5000 iterations. Minibatch = 16 with probabilistic sampling for class balance.
 
 ---
 
 ## 4. Datasets & Evaluation Protocol
 
-| Dataset | N subjects | Notes |
-|---|---|---|
-| SleepEDF-20 | 20 | Healthy adults; Fpz-Cz + Pz-Oz EEG + EOG + EMG |
-| SleepEDF-78 | 78 | Same source, larger subset |
-| SHHS | ~5,800 | Community cohort; C4-A1 EEG; large-scale generalization |
-| MASS | ~200 | Full PSG montage; multiple subsets |
-| ISRUC | ~100 | Clinical population incl. patients |
+| Dataset | N subjects | Channels | Sampling | Notes |
+|---|---|---|---|---|
+| **Sleep-EDF Expanded** | 78 (153 recordings) | Fpz-Cz EEG, Pz-Oz EEG, 1 horizontal EOG | 100 Hz | Main dataset; healthy adults; 2 nights/subject; R&K + AASM scoring |
+| **Sleep-EDF 20** | 20 | Same as above | 100 Hz | Subset for LOO cross-validation comparison with prior work |
+| **DREAMS** | 20 | 3 EEG + 2 EOG + 1 EMG | 200 Hz (resampled to 100) | Independent validation; both R&K and AASM scoring |
 
-**Evaluation protocol**: *(verify — likely k-fold CV or LOSO)*
-**Metrics**: Overall accuracy (ACC), Macro F1 (MF1), Cohen's κ
+> **CORRECTION:** Earlier notes listed SHHS (~5,800), MASS (~200), and ISRUC (~100). These datasets are **not used in this paper**.
+
+**Evaluation strategies:**
+1. **Night-holdout 5-fold:** Train on night 1, test on night 2 of same subjects
+2. **Subject-holdout 5-fold:** ~80% subjects train, ~20% test (new patients)
+3. **Record-holdout:** 90% train, 10% test (fixed split; used for interpretability experiments)
+
+**Metrics**: Overall accuracy (ACC), Macro F1 (MF1), Cohen's κ, per-stage Recall/Precision/F1
 
 ---
 
 ## 5. Results
 
-### 5.1 Comparison Table *(verify all values against paper tables)*
+### 5.1 Main Results — Sleep-EDF Expanded, Night-Holdout (from paper Table 3)
 
-| Method | ACC (%) | MF1 (%) | κ |
+| | Wake | S1 | S2 | SWS | REM | Overall |
+|---|---|---|---|---|---|---|
+| **Recall (%)** | 94.48±1.01 | 89.42±4.09 | 82.08±2.46 | 98.09±0.89 | 95.78±0.46 | — |
+| **Precision (%)** | 99.80±0.13 | 49.81±4.31 | 94.35±1.32 | 80.08±3.46 | 85.24±5.88 | — |
+| **F1 (%)** | 97.07±0.57 | 63.95±4.52 | 87.77±1.26 | 88.16±2.43 | 90.12±3.45 | — |
+| **Accuracy** | | | | | | **92.33% ± 0.59** |
+| **Cohen's κ** | | | | | | **0.85 ± 0.00** |
+| **Macro F1** | | | | | | **85.41% ± 1.57** |
+
+Subject-holdout: ACC = 90.08% ± 1.63, κ = 0.81, MF1 = 80.81%
+
+### 5.2 Comparison vs. Baselines (from paper Table 6, EDF-20 LOO)
+
+| Method | Channels | ACC (%) | κ |
 |---|---|---|---|
-| DeepSleepNet (Supratak 2017) | 82.0 | 76.9 | 0.76 |
-| SeqSleepNet (Phan 2019) | 87.1 | 80.0 | 0.83 |
-| SleepTransformer (Phan 2022) | 88.0 | 81.0 | 0.84 |
-| XSleepNet (Phan 2021) | 87.7 | 80.5 | 0.83 |
-| **Niknazar & Mednick (this paper)** | **~89** | **~83** | **~0.85** |
+| DeepSleepNet (2017) | EEG | 82.0 | 0.760 |
+| SleepEEGNet (2018) | EEG | 84.3 | 0.79 |
+| SeqSleepNet-FT (2019) | EEG-EOG | 84.3 | 0.776 |
+| DeepSleepNet-FT (2020) | EEG-EOG | 84.6 | 0.782 |
+| Scattering spectrum (2020) | EEG | 84.44 | 0.784 |
+| **Proposed (EEG-EOG)** | **EEG-EOG** | **93.94** | **0.88** |
+| **Proposed (EEG only)** | **EEG** | **92.65** | **0.85** |
 
-### 5.2 Per-Stage F1 *(approximate — verify)*
-| Stage | F1 | Why notable |
-|---|---|---|
-| Wake | ~90% | Most distinct signal pattern |
-| **N1** | ~45–55% | Hardest; transitional EEG; biggest gain from expert knowledge |
-| N2 | ~87% | Spindles/K-complexes well-defined |
-| N3 | ~85% | Slow waves well-defined |
-| REM | ~85% | EOG + atonia combination discriminates well |
+### 5.3 Ablation Results
 
-### 5.3 Interpretability Results
-- Temporal attention maps show model attending to spindle events when predicting N2, slow waves for N3, sawtooth waves for REM
-- Frequency-band attention: σ-band dominant for N2, δ-band for N3 — matches AASM criteria
-- Expert-rule fidelity metric: quantifies alignment between model attention and expert-prescribed features (novel contribution)
-- Transition probability matrix from the sequence model matches clinician-established hypnogram statistics
+| Configuration | ACC | κ | Impact |
+|---|---|---|---|
+| Full model (EEG+EOG, multi-epoch) | 93.94% | 0.88 | Baseline |
+| Remove Gabor → standard CNN | 84% | 0.77 | **−10%, −0.11 κ** |
+| Remove multi-epoch → single-epoch only | 87.72% | 0.75 | **−6%, −0.13 κ** |
+| Remove EOG → EEG only | 92.65% | 0.85 | −1.3%, −0.03 κ |
+
+### 5.4 Interpretability Results
+
+The paper introduces a **four-level interpretability framework**:
+
+1. **Level 1 — Staging Process:** Trained Gabor kernels visualized in time/frequency domain cluster around clinically known bands (slow waves ~1 Hz, theta ~4 Hz, spindles ~15 Hz, alpha 8–13 Hz). See Figures 5, S.1.
+2. **Level 2 — Stage-Specific Analysis:** EFF metric shows which kernels dominate which stages (slow-wave kernels → SWS; spindle kernel 24 → S2; theta kernels → REM). See Figure 6.
+3. **Level 3 — Signal Analysis:** EEG-to-EOG impact ratio shows S1 and REM depend significantly more on EOG (p<0.05), matching AASM criteria. See Figure 8.
+4. **Level 4 — Time-Series:** EFF(t) heatmaps show per-time-point kernel activation within single epochs (spindle burst at ~20–23s in S2 epoch, sustained delta in SWS). See Figure 9.
 
 ---
 
 ## 6. Discussion
 
 ### 6.1 Strengths
-- Clinician-verifiable: attention maps highlight exactly the signal events AASM clinicians look for
-- Multi-benchmark: state-of-the-art across SleepEDF, SHHS, MASS simultaneously
-- N1 F1 improvement is the most clinically meaningful gain (N1 is hardest for both humans and machines)
-- Multi-mechanism injection (attention + auxiliary losses + transition priors) is more thorough than prior work
+- Clinician-verifiable: Gabor kernel activations map directly to AASM-standard waveforms — clinicians can inspect what the network learned
+- State-of-the-art accuracy across Sleep-EDF and DREAMS datasets
+- Gabor kernels improve both accuracy (+9%) AND interpretability simultaneously — challenges the accuracy-interpretability trade-off assumption
+- Four-level interpretability framework from global kernel analysis to per-time-point waveform detection
+- N1 recall of 89.4% is remarkably high given fundamental clinical ambiguity
 
 ### 6.2 Limitations
-- Relies on automatic spindle/K-complex detectors for auxiliary supervision — imperfect detectors → noisy auxiliary labels
-- AASM rules are adult-specific; pediatric or pathology-specific extensions not addressed
+- Evaluated only on healthy adult populations; generalization to pediatric, elderly, or clinical populations untested
+- Gabor kernels capture oscillatory patterns well but may miss non-oscillatory transients (certain artifacts)
+- Only EEG + EOG used; **EMG not included** (though AASM requires it for REM scoring via atonia)
+- Hyperparameter choices (32 EEG kernels, 8 EOG kernels, ±4 epoch context) not extensively ablated
 - N1 human inter-rater agreement (~52–60%) sets a fundamental accuracy ceiling
-- λ₁/λ₂/λ₃ hyperparameters need per-dataset tuning — limits plug-and-play clinical deployment
-- Computationally more expensive than single-level baselines
 
-### 6.3 Future Work *(verify against paper)*
-- Extension to disorder-specific scoring rules (apnea, narcolepsy, insomnia)
-- Clinician-in-the-loop active learning
-- Large-scale pre-training + fine-tuning paradigm
+### 6.3 Future Work (from paper Section 7)
+- Incorporating additional modalities (e.g., ECG for cardiac-influenced sleep events)
+- Examining **negative gradients** — understanding which kernels suppress certain classifications (currently only positive contributions analyzed via EFF)
+- Extension to disorder-specific scoring rules
 
 ---
 
@@ -178,32 +226,31 @@ where `α_t^expert` is the soft target from an automatic feature detector.
 
 ### 7.1 Multimodal Processing Pipeline (Slides 15–20)
 ```
-INPUT DEVICES:   EEG electrodes + EOG electrodes + EMG electrodes
+INPUT DEVICES:   EEG electrodes + EOG electrodes
       ↓
-RAW DATA:        30-second epochs (time-domain physiological signals)
+RAW DATA:        30-second epochs (physical signals at 100 Hz)
       ↓
-REPRESENTATION:  CNN time/freq features; attention-weighted representations
+REPRESENTATION:  Gabor layers → CNN features (low-level → mid-level)
       ↓
-PREDICTION:      5-class sleep stage classifier (Wake/N1/N2/N3/REM)
+PREDICTION:      FC layers + Bi-LSTM (5-class classifier)
       ↓
-MAPPING:         Stage label → clinical hypnogram / report
-      ↓
-OUTPUT:          Sleep stage annotation + interpretability visualization
+OUTPUT:          Sleep stage label + interpretability visualization (EFF heatmaps)
 ```
 
 ### 7.2 Four-Layer Hierarchy (Lecture 3)
-The paper's multi-level structure is a direct instantiation of the course hierarchy:
-- **Physical signals** → raw EEG/EOG/EMG sample arrays
-- **Low-level features** → band power, spindle waveform descriptors (CNN output)
-- **Mid-level features** → expert-guided attention representations (knowledge-infused)
-- **Concepts and structures** → sleep stage label + hypnogram sequence
+The paper's architecture is a direct instantiation of the course hierarchy:
+- **Physical signals** → raw EEG/EOG sample arrays
+- **Low-level features** → Gabor kernel activations (frequency-band power per time-point)
+- **Mid-level features** → CNN-extracted higher-order patterns (spindle detection, K-complex recognition)
+- **Concepts and structures** → sleep stage labels (Wake/S1/S2/SWS/REM)
 
 ### 7.3 Multimodal Complementarity (Lecture 2)
-EEG, EOG, EMG carry complementary information — no single modality suffices:
-- EEG alone: cannot reliably detect atonia (needed for REM vs N1 distinction)
-- EOG alone: no brain-state information
-- EMG alone: binary (tonic/atonic); insufficient for full staging
-→ This is the same complementarity argument as "Put That There" (speech + gesture): together they enable what neither can do alone.
+EEG and EOG carry complementary information — no single modality suffices:
+- EEG alone: cannot reliably distinguish S1 from REM (both low-amplitude mixed-frequency)
+- EOG alone: no brain-state information for N2/N3 discrimination
+- Ablation confirms: EEG+EOG outperforms EEG alone (+1.3% ACC, +0.03 κ)
+- Figure 8 shows S1 and REM depend significantly more on EOG (p<0.05) while S2/SWS do not
+→ Same complementarity as "Put That There" (speech + gesture): together they enable what neither can do alone.
 
 ### 7.4 Feature Design Philosophy (Lecture 3 — 10 groups of features)
 AASM rules → computable signal features is the same methodology as:
@@ -219,16 +266,16 @@ The paper operationalises clinical expert knowledge the way the course operation
 ## 8. Exam Preparation
 
 **Q1: What exactly is novel compared to DeepSleepNet?**
-> DeepSleepNet (CNN+BiLSTM) is purely data-driven — no domain knowledge injected, black box. This paper: (1) adds multi-level knowledge injection via attention regularisation and auxiliary losses aligned with AASM rules; (2) adds an expert-rule fidelity metric to evaluate interpretability; (3) explicitly models stage transition constraints. The interpretability is the key novelty, not just accuracy.
+> DeepSleepNet (CNN+BiLSTM) is purely data-driven — no domain knowledge, black box. This paper: (1) replaces the first CNN layer with trainable **Gabor kernels** that are constrained to learn physiologically meaningful frequency-band filters; (2) introduces a four-level interpretability framework with the EFF metric to quantify which waveforms the model uses for each stage; (3) achieves +9% accuracy improvement over standard CNN precisely because of the Gabor inductive bias. The interpretability is structural (built into the architecture), not post-hoc.
 
 **Q2: How do they inject expert knowledge — what is the exact mechanism?**
-> Three mechanisms: (1) attention weights regularised toward AASM-discriminative time/frequency regions per stage; (2) auxiliary training losses connecting intermediate representations to output of automatic feature detectors (spindles, K-complexes, slow waves); (3) learned transition prior from AASM sleep-architecture rules. Together these form a composite loss L = L_CE + λ₁·L_feat + λ₂·L_trans + λ₃·L_attn.
+> Expert knowledge is infused as an **architectural inductive bias**, not through auxiliary losses or explicit rules. The first layer uses Gabor functions — cosine waves modulated by Gaussian envelopes — with three learnable parameters (frequency f, bandwidth σ, offset u). Because Gabor functions can only represent localized oscillations, every learned kernel is guaranteed to be a frequency-band filter with direct physiological meaning. After training, kernels match known sleep waveforms: ~1 Hz (slow waves/N3), ~4 Hz (theta/REM), ~15 Hz (spindles/N2). The loss function is simply cross-entropy — no auxiliary terms.
 
 **Q3: Which modality contributes most to classification?**
-> *(Check ablation study in paper.)* EEG is the primary modality for all stages. EOG is critical for REM detection. EMG provides the atonia signal that disambiguates REM from N1. All three are necessary for full 5-stage scoring per AASM.
+> EEG is primary for all stages. EOG adds +1.3% accuracy and +0.03 κ. Crucially, Figure 8 shows S1 and REM depend significantly more on EOG than S2/SWS (p<0.05) — consistent with eye movements being clinically diagnostic only for those stages. EMG is **not used** in this paper, though AASM rules require it for full scoring.
 
 **Q4: How is this a multimodal system in the MM-Systems sense?**
-> EEG + EOG + EMG are three distinct physiological sensory modalities. Each captures a different aspect of the user's state (brain activity, eye movement, muscle tone). The system integrates them — satisfying both the W3C definition ("input in more than one modality") and the Jaimes-Sebe definition ("responds to inputs in more than one communication channel"). The modalities are complementary: no single one enables full 5-stage scoring.
+> EEG and EOG are two distinct physiological sensory modalities capturing different aspects of the same state (brain activity vs. eye movement). The system uses **early fusion** (mixing layer after Gabor outputs) to integrate them before classification — satisfying both the W3C definition ("input in more than one modality") and the course's complementarity criteria. The ablation study confirms neither modality alone suffices for optimal performance.
 
 **Q5: What does 'interpretable' mean here, and for whom?**
-> Interpretable for sleep clinicians: the model produces attention visualisations that highlight the exact signal events (spindles, K-complexes, slow waves, eye movements, atonia) that AASM-trained technicians use. Clinicians can verify that the model is "looking at the right things" before trusting it. The expert-rule fidelity metric quantifies this alignment objectively. This is distinguished from generic DL interpretability (e.g., Grad-CAM) because it is grounded in domain-specific clinical criteria.
+> Interpretable for sleep clinicians, at four levels: (1) trained Gabor kernels can be visualized and matched to known EEG waveforms; (2) the EFF metric shows which kernels contribute to which stages; (3) EEG-vs-EOG ratios match clinical expectations per stage; (4) time-series EFF heatmaps show exactly which waveform was detected at which time-point in each epoch. This is fundamentally different from Grad-CAM — Gabor kernels tell you *what waveform* was detected (clinically meaningful), not just *where* the network looked.
