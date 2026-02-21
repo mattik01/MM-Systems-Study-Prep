@@ -10,25 +10,65 @@
 
 ### Text Draft
 
-Sleep is not a passive shutdown of the brain — it is an active, structured process critical to memory consolidation, immune function, metabolic regulation, and cardiovascular health. Large-scale epidemiological studies have linked chronic sleep disruption to Alzheimer's disease, obesity, type-2 diabetes, and depression, making sleep research one of the fastest-growing fields in clinical neuroscience.
+Deep learning has fundamentally transformed computational signal analysis over the past decade — matching or exceeding human performance in image recognition, speech processing, and clinical diagnostics. Yet this wave of capability has arrived alongside a persistent and increasingly urgent challenge: **these models are opaque**. Neural networks can classify or predict with high accuracy while offering no account of their reasoning — no path from input to output that a human expert can audit, challenge, or trust.
 
-At the intersection of this clinical urgency sits a technological tension: deep learning methods have achieved remarkable accuracy in automating sleep analysis, often matching or exceeding human experts. Yet these models remain opaque — clinicians cannot inspect why a model assigned a particular sleep stage, making it impossible to verify, correct, or trust automated decisions. In a medical context where misclassification can affect treatment plans, this "black box" problem is not merely academic — it is a barrier to clinical deployment.
+In high-stakes domains, this is not a peripheral concern but a fundamental barrier to deployment. **Clinical medicine is the paradigm case.** A diagnostic model that cannot explain its decisions forces clinicians into an untenable position: blindly trust it, or ignore it entirely. Neither is acceptable. Regulatory frameworks (the EU AI Act, FDA guidance on Software as a Medical Device) increasingly mandate **explainability**, not merely accuracy, for AI systems in clinical pathways. The field of **Explainable AI (XAI)** has grown directly in response — techniques like Grad-CAM, SHAP, and LIME aim to make black-box models legible after the fact. But post-hoc attribution methods produce explanations that often do not map onto clinical vocabulary, leaving a gap between what the model "says" and what a clinician can actually verify.
 
-This paper addresses both sides: it proposes a deep learning architecture that achieves state-of-the-art sleep staging accuracy **while** providing interpretable outputs grounded in the same clinical knowledge that human experts use. The key insight is architectural: by using Gabor kernels — waveform-shaped filters whose parameters have direct physiological meaning — as the network's first layer, every learned feature can be traced back to a known sleep waveform, making the model's reasoning transparent to clinicians.
+A more principled approach is **architectural transparency**: designing models whose representations are constrained to be interpretable by construction — not explained afterward, but interpretable by design. This paper demonstrates exactly this approach in automated sleep stage classification. Using **Gabor kernels** — waveform-shaped filters whose parameters have direct physiological meaning — as the network's first layer ensures every learned feature maps onto a clinician-interpretable signal pattern. The result challenges the assumed accuracy-interpretability trade-off: constrained, interpretable representations do not just maintain performance, they **improve** it (+9% accuracy over unconstrained CNN).
 
 ### Visualizations
 - No figure needed for this section — keep it text-only on the poster (3-5 sentences max).
-- Optional: A simple graphic showing the tension: "Accuracy vs. Interpretability" with this paper resolving the trade-off.
+- Optional: A spectrum graphic: "Post-hoc XAI (Grad-CAM, SHAP)" → limited clinical vocabulary vs. "Architectural Transparency (this paper)" → interpretable by design. Or a simple "Accuracy vs. Interpretability" axis with this paper resolving the trade-off.
 
 ### Course Connection
 - **Slides 10-14 (Post-WIMP medical applications):** Sleep monitoring is a clinical sensing application, analogous to rehabilitation and medical sensor examples in the course. The speech script discusses patients interacting with systems that track their physiological state and provide feedback — sleep staging is exactly this paradigm.
 
 ### Poster Hint
-Keep this short. One paragraph max. The examiner cares about the MM-Systems connection more than general medical motivation. Key message: "sleep matters clinically + DL is accurate but opaque = this paper solves both."
+This is your hook — it should land the broader stakes before the domain details. Lead with the XAI/transparency framing, not sleep science. Key message: "DL is transforming medicine but the opacity problem blocks clinical deployment — this paper shows that architectural transparency can resolve the accuracy-interpretability trade-off in a real clinical task." Keep to one short paragraph on the poster.
 
 ---
 
-## Section 2: The Domain Problem — Sleep Stage Scoring
+## Section 2: The Technical Problem — Why DL Alone Isn't Enough
+
+### Text Draft
+
+Machine learning has been applied to automatic sleep staging for over two decades. Classical approaches — SVMs, random forests, HMMs — relied on hand-crafted features (spectral power in frequency bands, signal entropy, waveform detectors) designed by domain experts. These were interpretable but limited in accuracy.
+
+Deep learning changed the equation. Starting with DeepSleepNet (Supratak et al., 2017), which used CNN+BiLSTM to learn directly from raw EEG, DL methods consistently outperformed classical approaches. By 2022, models like SleepTransformer and XSleepNet reached ~84-88% accuracy on standard benchmarks.
+
+But accuracy alone is insufficient in clinical medicine. The stakes are high: sleep staging informs diagnosis of sleep apnea, narcolepsy, insomnia, and neurological disorders. A misclassified epoch can shift clinical metrics (e.g., REM latency, slow-wave sleep percentage) that drive treatment decisions. In this context:
+
+1. **DL models are tools, not decision-makers.** The clinician must remain the authority. A model that says "this is N2" without explaining *why* forces the clinician to either blindly trust it or ignore it entirely — neither is acceptable.
+
+2. **Black-box behavior breaks the clinical workflow.** Sleep technicians are trained to look for specific waveforms (spindles -> N2, slow waves -> N3, eye movements -> REM). If a model's reasoning cannot be expressed in these terms, it cannot be integrated into existing clinical practice.
+
+3. **Trust requires verifiability.** Clinicians need to see that the model is "looking at the right things." Generic DL interpretability methods (Grad-CAM, saliency maps) produce heatmaps that don't map onto clinical vocabulary.
+
+This is the gap the paper fills: **accurate AND interpretable, in clinically meaningful terms.** Expert knowledge is built directly into the network architecture — not as a post-hoc explanation, but as a structural constraint on what the network can learn.
+
+### Visualizations
+- **Comparison table (condensed from paper Table 6):**
+
+| Method | Year | Channels | ACC (%) | kappa |
+|--------|------|----------|---------|-------|
+| DeepSleepNet | 2017 | EEG | 82.0 | 0.76 |
+| SleepEEGNet | 2018 | EEG | 84.3 | 0.79 |
+| SeqSleepNet-FT | 2019 | EEG-EOG | 84.3 | 0.78 |
+| DeepSleepNet-FT | 2020 | EEG-EOG | 84.6 | 0.78 |
+| **Proposed** | **2024** | **EEG-EOG** | **93.94** | **0.88** |
+
+- Optional: A visual spectrum — "Classical ML: Interpretable but less accurate" vs. "Deep Learning: Accurate but opaque" vs. "This paper: Both."
+
+### Course Connection
+- **ML classification methods (Lecture 3):** The course covers kNN, HMM, SVM, and DL as classification approaches. This section positions the paper within that taxonomy: classical ML -> DL -> interpretable DL.
+- **Prediction step in the multimodal pipeline (Slides 15-20):** Sleep staging is exactly the "prediction" step the speech script describes: *"Given the representation, you want to infer something: a gesture class, an emotional state, an action label."*
+
+### Poster Hint
+The comparison table is the strongest visual — it shows the problem (prior methods plateau ~84%) and the solution (proposed reaches ~94%) in one glance. The +9.3% gap is striking. Keep the prose short; the table does the work.
+
+---
+
+## Section 3: The Domain Problem — Sleep Stage Scoring
 
 ### Text Draft
 
@@ -75,46 +115,6 @@ These rules are the "expert knowledge" that the paper infuses into its architect
 
 ### Poster Hint
 The stage table is poster-worthy. It immediately conveys the multimodal nature: **every stage requires information from multiple modalities**. You cannot distinguish N1 from REM using EEG alone (both are low-amplitude mixed-frequency) — you need EOG (eye movements) and EMG (atonia) to disambiguate. This is where you establish the paper as a multimodal system in the course sense.
-
----
-
-## Section 3: The Technical Problem — Why DL Alone Isn't Enough
-
-### Text Draft
-
-Machine learning has been applied to automatic sleep staging for over two decades. Classical approaches — SVMs, random forests, HMMs — relied on hand-crafted features (spectral power in frequency bands, signal entropy, waveform detectors) designed by domain experts. These were interpretable but limited in accuracy.
-
-Deep learning changed the equation. Starting with DeepSleepNet (Supratak et al., 2017), which used CNN+BiLSTM to learn directly from raw EEG, DL methods consistently outperformed classical approaches. By 2022, models like SleepTransformer and XSleepNet reached ~84-88% accuracy on standard benchmarks.
-
-But accuracy alone is insufficient in clinical medicine. The stakes are high: sleep staging informs diagnosis of sleep apnea, narcolepsy, insomnia, and neurological disorders. A misclassified epoch can shift clinical metrics (e.g., REM latency, slow-wave sleep percentage) that drive treatment decisions. In this context:
-
-1. **DL models are tools, not decision-makers.** The clinician must remain the authority. A model that says "this is N2" without explaining *why* forces the clinician to either blindly trust it or ignore it entirely — neither is acceptable.
-
-2. **Black-box behavior breaks the clinical workflow.** Sleep technicians are trained to look for specific waveforms (spindles -> N2, slow waves -> N3, eye movements -> REM). If a model's reasoning cannot be expressed in these terms, it cannot be integrated into existing clinical practice.
-
-3. **Trust requires verifiability.** Clinicians need to see that the model is "looking at the right things." Generic DL interpretability methods (Grad-CAM, saliency maps) produce heatmaps that don't map onto clinical vocabulary.
-
-This is the gap the paper fills: **accurate AND interpretable, in clinically meaningful terms.** Expert knowledge is built directly into the network architecture — not as a post-hoc explanation, but as a structural constraint on what the network can learn.
-
-### Visualizations
-- **Comparison table (condensed from paper Table 6):**
-
-| Method | Year | Channels | ACC (%) | kappa |
-|--------|------|----------|---------|-------|
-| DeepSleepNet | 2017 | EEG | 82.0 | 0.76 |
-| SleepEEGNet | 2018 | EEG | 84.3 | 0.79 |
-| SeqSleepNet-FT | 2019 | EEG-EOG | 84.3 | 0.78 |
-| DeepSleepNet-FT | 2020 | EEG-EOG | 84.6 | 0.78 |
-| **Proposed** | **2024** | **EEG-EOG** | **93.94** | **0.88** |
-
-- Optional: A visual spectrum — "Classical ML: Interpretable but less accurate" vs. "Deep Learning: Accurate but opaque" vs. "This paper: Both."
-
-### Course Connection
-- **ML classification methods (Lecture 3):** The course covers kNN, HMM, SVM, and DL as classification approaches. This section positions the paper within that taxonomy: classical ML -> DL -> interpretable DL.
-- **Prediction step in the multimodal pipeline (Slides 15-20):** Sleep staging is exactly the "prediction" step the speech script describes: *"Given the representation, you want to infer something: a gesture class, an emotional state, an action label."*
-
-### Poster Hint
-Keep shorter than Section 2. The comparison table is the strongest visual — it shows the problem (prior methods plateau ~84%) and the solution (proposed reaches ~94%) in one glance. The +9.3% gap is striking.
 
 ---
 
