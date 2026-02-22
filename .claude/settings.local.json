@@ -6,7 +6,8 @@
       "Bash(echo:*)",
       "Bash(python -m pip install:*)",
       "Bash(python:*)",
-      "WebFetch(domain:pdf.sciencedirectassets.com)"
+      "WebFetch(domain:pdf.sciencedirectassets.com)",
+      "WebSearch"
     ]
   }
 }

@@ -10,7 +10,7 @@
 
 ### Text Draft
 
-Deep learning has achieved remarkable accuracy across medical signal analysis — often matching or exceeding human experts. But these models are **opaque**: a neural network can classify with high confidence while offering no account of its reasoning. In clinical practice this is not an abstract concern — it is a deployment blocker. Clinicians cannot blindly trust unexplainable decisions, and regulations increasingly mandate that AI in clinical pathways be accountable (EU AI Act; FDA guidance on Software as a Medical Device).
+Deep learning has achieved remarkable accuracy across medical signal analysis — often matching or exceeding human experts. But these models are **opaque**: a neural network can classify with high confidence while offering no account of its reasoning. In clinical practice this is not an abstract concern — it is a deployment blocker. Clinicians cannot blindly trust unexplainable decisions, and regulations increasingly mandate that AI in clinical pathways be accountable (EU AI Act 2024/1689, Art. 13 & Annex III; FDA, 2025, App. B).
 
 **Three related but distinct concepts define the space** (Ali et al., 2023):
 - **Transparency** — a white-box model property: the internal logic of the model can be inspected and understood directly. A linear model is transparent; a standard deep CNN is not.
@@ -497,8 +497,13 @@ All citations used in this document, formatted for poster use.
 ### Main Paper
 1. **Niknazar, M., & Mednick, S. C.** (2024). A Multi-Level Interpretable Sleep Stage Scoring System by Infusing Experts' Knowledge Into a Deep Network Architecture. *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 46(7), 5044–5061. https://doi.org/10.1109/TPAMI.2023.3327296
 
+### Regulatory
+2. **European Parliament and Council of the European Union.** (2024). Regulation (EU) 2024/1689 on Artificial Intelligence (EU AI Act). *Official Journal of the European Union*, L 2024/1689. Article 13 (Transparency and provision of information to deployers); Annex III §5(a) (High-risk classification: AI systems in medical devices regulated under MDR/IVDR).
+
+3. **U.S. Food and Drug Administration.** (2025, January). *Artificial Intelligence-Enabled Device Software Functions: Lifecycle Management and Marketing Submission Recommendations* (Draft Guidance, Docket No. FDA-2024-D-4488). Appendix B: Transparency Design Considerations. https://www.fda.gov/media/184856/download
+
 ### XAI / Explainability
-2. **Ali, S., Abuhmed, T., El-Sappagh, S., Muhammad, K., Alonso-Moral, J. M., Confalonieri, R., Guidotti, R., Del Ser, J., Díaz-Rodríguez, N., & Herrera, F.** (2023). Explainable Artificial Intelligence (XAI): What we know and what is left to attain Trustworthy Artificial Intelligence. *Information Fusion*, 99, 101805. https://doi.org/10.1016/j.inffus.2023.101805
+4. **Ali, S., Abuhmed, T., El-Sappagh, S., Muhammad, K., Alonso-Moral, J. M., Confalonieri, R., Guidotti, R., Del Ser, J., Díaz-Rodríguez, N., & Herrera, F.** (2023). Explainable Artificial Intelligence (XAI): What we know and what is left to attain Trustworthy Artificial Intelligence. *Information Fusion*, 99, 101805. https://doi.org/10.1016/j.inffus.2023.101805
 
 ### Sleep Staging Domain
 3. **Berry, R. B., Brooks, R., Gamaldo, C., Harding, S. M., Lloyd, R. M., Quan, S. F., & Troester, M. T.** (2017). *AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications* (Version 2.4). American Academy of Sleep Medicine.
