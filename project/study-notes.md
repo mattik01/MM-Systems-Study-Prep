@@ -279,3 +279,14 @@ The paper operationalises clinical expert knowledge the way the course operation
 
 **Q5: What does 'interpretable' mean here, and for whom?**
 > Interpretable for sleep clinicians, at four levels: (1) trained Gabor kernels can be visualized and matched to known EEG waveforms; (2) the EFF metric shows which kernels contribute to which stages; (3) EEG-vs-EOG ratios match clinical expectations per stage; (4) time-series EFF heatmaps show exactly which waveform was detected at which time-point in each epoch. This is fundamentally different from Grad-CAM — Gabor kernels tell you *what waveform* was detected (clinically meaningful), not just *where* the network looked.
+
+**Q6: Why is constraining only the first layer to Gabor sufficient for interpretability — don't layers 2+ still reason opaquely?**
+> This is a sharp challenge. The defence rests on three arguments:
+>
+> 1. **Information bottleneck.** By constraining layer 1 to Gabor kernels, the network is forced to decompose the raw signal into frequency-band activations before anything else can happen. Layer 2 never sees the raw signal — only Gabor outputs. The network therefore cannot learn to respond to anything the Gabor layer does not pass through. The clinical vocabulary is not merely imposed at layer 1; it limits what the entire network can ever "notice" about the input. An unconstrained CNN could learn arbitrary time-domain quirks at layer 1, and layers 2+ would reason on top of those. That pathway is closed here.
+>
+> 2. **EFF bridges the opaque middle.** Layers 2–N are still opaque in terms of their internal computations. But the Effective Functional Effect (EFF) metric propagates gradient information backward from the final classification decision through all intermediate layers to the first-layer Gabor activations, producing a direct attribution: "this epoch was classified as N2 because kernel 24 (~15 Hz, narrow bandwidth) was strongly active at t = 20–23 s." You do not need to understand what the intermediate layers computed internally, because EFF asks them which layer-1 features they relied on.
+>
+> 3. **The architecture mirrors clinical reasoning structure.** Human experts also cannot trace every step of their reasoning. They (1) decompose the signal into frequency bands perceptually, (2) recognize waveform patterns, (3) reach a stage decision. The paper's architecture follows the same order. The intermediate layers doing opaque combination is analogous to unconscious expert integration — but the inputs to that integration and the final output are both in clinical vocabulary, which is what matters for accountability.
+>
+> **Honest limitation:** The paper does not claim full glass-box interpretability. It does not explain *how* the deeper layers combine Gabor activations. Whether attribution back to layer 1 alone is truly sufficient is a legitimate open question — and a defensible point of critical discussion.

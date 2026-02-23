@@ -46,11 +46,11 @@ Sleep is not a uniform state but a structured cycle of distinct physiological st
 
 | Stage | Key EEG Signature | EOG | EMG | Meaning |
 |-------|-------------------|-----|-----|---------|
-| **Wake** | Alpha (8-13 Hz), blinks | Voluntary movements | Normal | Alert / drowsy |
-| **N1** | Low-amplitude mixed, theta (4-7 Hz) | Slow rolling | Slightly reduced | Light sleep onset |
-| **N2** | Sleep spindles (12-15 Hz), K-complexes | Absent | Reduced | Stable light sleep (~50% of night) |
-| **N3 (SWS)** | Slow waves, delta (0.5-4 Hz), >75 µV | Absent | Low | Deep / restorative |
-| **REM** | Low-amplitude mixed (like N1) | Rapid conjugate movements | Atonia | Dreaming / memory consolidation |
+| **Wake** | Alpha (8–13 Hz) | Blinks (0.5–2 Hz); reading or rapid eye movements | Variable; higher than sleep stages | Alert / drowsy |
+| **N1** | Low-amplitude mixed, predominantly 4–7 Hz | Slow rolling eye movements | Slightly reduced | Light sleep onset |
+| **N2** | Sleep spindles (11–16 Hz, typically 12–14 Hz); K-complexes | Typically absent | Reduced | Stable light sleep (~50% of night) |
+| **N3 (SWS)** | Slow waves, 0.5–2 Hz, >75 µV (≥20% of epoch) | Absent | Low | Deep / restorative |
+| **REM** | Low-amplitude mixed (similar to N1); sawtooth waves (2–6 Hz) | Rapid conjugate eye movements | Lowest chin EMG tone (atonia) | Dreaming / memory consolidation |
 
 A typical night cycles through N1-N2-N3-N2-REM four to six times, each cycle ~90 minutes, with REM lengthening toward morning.
 
